@@ -161,10 +161,10 @@ class ContactTests(unittest.TestCase):
         factory.return_value.starttls.assert_not_called()
         factory.return_value.login.assert_called_once_with("owner@example.com", "secret")
 
-    def test_html_enables_endpoint_but_never_exposes_private_settings(self):
+    def test_html_targets_web3forms_without_exposing_private_settings(self):
         result = request(self.app, method="GET", path="/")
         self.assertEqual(result["status"], 200)
-        self.assertIn(b'data-contact-endpoint="/api/contact"', result["body"])
+        self.assertIn(b'action="https://api.web3forms.com/submit"', result["body"])
         self.assertNotIn(b"server-only-secret", result["body"])
         self.assertEqual(request(self.app, method="GET", path="/settings.json")["status"], 404)
         self.assertEqual(request(self.app, method="GET", path="/../settings.json")["status"], 404)
@@ -176,6 +176,30 @@ class ContactTests(unittest.TestCase):
         result = request(self.app, method="GET")
         self.assertEqual(result["status"], 405)
         self.assertEqual(result["headers"]["Allow"], "POST")
+
+    def test_web3forms_public_key_is_injected_without_exposing_smtp_password(self):
+        settings = server.MailSettings(web3forms_access_key='key\"<script>alert(1)</script>', password="private-password")
+        app = server.ContactApplication(settings, self.limiter)
+        result = request(app, method="GET", path="/")
+        self.assertIn(b'value="key&quot;&lt;script&gt;alert(1)&lt;/script&gt;"', result["body"])
+        self.assertNotIn(b"private-password", result["body"])
+        self.assertNotIn(b'<script>alert(1)</script>', result["body"])
+        self.smtp_factory.assert_not_called()
+
+    def test_csp_allows_browser_to_submit_to_web3forms(self):
+        result = request(self.app, method="GET", path="/")
+        csp = result["headers"]["Content-Security-Policy"]
+        self.assertIn("connect-src 'self' https://api.web3forms.com;", csp)
+        self.assertIn("form-action 'self' https://api.web3forms.com;", csp)
+        self.assertNotIn("*", csp)
+
+    def test_web3forms_key_environment_overrides_settings_file(self):
+        root = Path(self.directory.name)
+        (root / "settings.json").write_text(json.dumps({"WEB3FORMS_ACCESS_KEY": "file-key"}))
+        with patch.object(server, "ROOT", root), patch.dict(server.os.environ, {}, clear=True):
+            self.assertEqual(server.load_settings().web3forms_access_key, "file-key")
+            with patch.dict(server.os.environ, {"WEB3FORMS_ACCESS_KEY": " environment-key "}):
+                self.assertEqual(server.load_settings().web3forms_access_key, "environment-key")
 
 
 class SMTPHandler(socketserver.StreamRequestHandler):

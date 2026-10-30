@@ -1,150 +1,137 @@
 # Jason Escalante's portfolio
 
-A responsive portfolio with a simple introduction, scroll-in project cards for
-ClearFrame and Pokémon Card Manager, and FantasyIQ marked as in progress.
+A responsive portfolio with a simple introduction, scroll-in cards for ClearFrame
+and Pokémon Card Manager, and FantasyIQ marked as in progress.
 
-This includes the complete portfolio, the rounded Name / Email / Message form,
-and a Python backend that sends messages to **jasone9661@gmail.com** over SMTP.
-The visitor's email becomes **Reply-To**, so replying in Gmail goes back to them.
+## Contact form: Web3Forms
 
-**Live Gmail delivery is not activated in this download.** Configure your own
-server-side email credential, then run or deploy the Python application.
-No Gmail password or API key is included. The bundled tests deliver to a local
-SMTP test server; they do not contact Gmail.
+The form now submits **directly from the visitor's browser** to
+`https://api.web3forms.com/submit` over HTTPS. This avoids DigitalOcean's SMTP
+restrictions and follows Web3Forms' browser-side integration for its free plan.
+Python still serves the website and inserts the configured public form key.
+The server's Content Security Policy explicitly allows the Web3Forms API.
 
-**DigitalOcean email status:** this version uses SMTP. DigitalOcean blocks common
-SMTP ports on Droplets and restricts SMTP on App Platform. The portfolio can be
-deployed there, but sending email needs an HTTPS email-provider integration first.
-Setting a Gmail App Password alone does not resolve the platform restriction.
-The direct email link remains available while the form is unconfigured.
+**Email delivery needs a real Web3Forms access key.** No key is included in this
+repository. Create a form for **jasone9661@gmail.com** at
+[Web3Forms](https://app.web3forms.com/), verify that email, and copy its access key.
+The destination inbox is determined by the access key, not an editable `to` field.
+The visitor's `email` field becomes Reply-To, so replying reaches the visitor.
 
-## Run it locally
+Web3Forms documents its form access key as public and suitable for client-side
+HTML; it is not a Gmail password or a private account API token. Only use the
+form's **access key** here. No Gmail App Password is needed for this form.
 
-1. Extract the ZIP and open a terminal inside `portfolio-contact-python`.
-2. Use Python 3.10 or newer.
-3. Copy `settings.example.json` to **`settings.json`** in this folder.
-4. Fill in `SMTP_PASSWORD` privately in `settings.json`. For the included Gmail
-   configuration, use an App Password for your sending account. Leave the
-   `CONTACT_TO` value as `jasone9661@gmail.com`.
-5. Run:
+The form includes a hidden bot-check checkbox, native required/email/length
+validation, a pending state that blocks duplicate clicks, and a 15-second timeout.
+It displays success only after an HTTP success response with `success: true`.
+Failed submissions retain the visitor's message and offer a direct email link.
+Web3Forms handles server-side anti-spam and submission limits; the old Python
+SMTP rate limiter does not apply to browser-to-Web3Forms requests.
 
-   ```text
-   python server.py
+## Update the existing DigitalOcean Droplet
+
+The existing Nginx proxy, HTTPS certificate, and `portfolio.service` remain usable.
+
+1. In the **Droplet console**, update the code:
+
+   ```bash
+   sudo git -C /opt/portfolio pull --ff-only
    ```
 
-6. Open **http://127.0.0.1:8000** in your browser and use the form.
+2. Open the local configuration:
 
-Google App Passwords require 2-Step Verification and are not available for every
-account. Create one through your Google account's
-[App Passwords page](https://myaccount.google.com/apppasswords), if available.
-Use the App Password rather than your normal Google password. Enter its
-characters without the grouping spaces. Keep `settings.json` private and out of
-Git; the included `.gitignore` excludes it. The server never serves this file.
+   ```bash
+   sudo nano /opt/portfolio/settings.json
+   ```
 
-Gmail's preset uses `smtp.gmail.com`, port `587`, with STARTTLS. Another mail
-provider can be configured using its SMTP host, port, credentials, and approved
-sender address. SSL from connection start is supported with
-`SMTP_SECURITY` set to `ssl`, usually on port `465`.
+   If this is a new file, paste this and replace the value with your actual
+   Web3Forms form access key:
 
-Environment variables with the same names as the settings keys override the
-JSON file. A hosting provider's private environment-variable settings are the
-preferred place for live credentials. This application does not read `.env`
-files automatically. Restart the server after changing configuration.
+   ```json
+   {
+     "WEB3FORMS_ACCESS_KEY": "PASTE_YOUR_REAL_WEB3FORMS_ACCESS_KEY_HERE"
+   }
+   ```
 
-## Deploy the website on DigitalOcean App Platform
+   If settings already exist, add this key to the existing JSON object instead
+   of replacing other settings. Save with Ctrl+O, Enter, then exit with Ctrl+X.
+   This file is excluded from Git. Allow the service account to read it:
 
-1. In DigitalOcean, select **Create App**, connect GitHub, and select
-   `jasone9/Portfolio`, branch `main`.
-2. Choose a Python **Web Service** and keep the source directory at the repository
-   root. The HTML and backend are served together by Python.
-3. Use these settings:
+   ```bash
+   sudo chown root:www-data /opt/portfolio/settings.json
+   sudo chmod 640 /opt/portfolio/settings.json
+   ```
 
-   | Setting | Value |
-   | --- | --- |
-   | Build command | `pip install -r requirements.txt` |
-   | Run command | `waitress-serve --listen=0.0.0.0:8080 server:application` |
-   | HTTP port | `8080` |
-   | Route | `/` |
+3. Restart the running Python service so it reloads the HTML and settings:
 
-4. Deploy. DigitalOcean provides an HTTPS address for the site.
-5. Set `PUBLIC_ORIGIN` in the service's environment variables to that exact
-   address, such as `https://your-app.ondigitalocean.app`, and redeploy. If you
-   later use your own domain, update this setting to the origin visitors use.
+   ```bash
+   sudo systemctl restart portfolio
+   sudo systemctl status portfolio --no-pager
+   ```
 
-This publishes the portfolio, not live email delivery. Do not add Gmail
-credentials expecting SMTP to work on DigitalOcean; the email transport needs
-to be adapted to a provider's HTTPS API. Keep any future API key in the service's
-encrypted environment variables, never in HTML or GitHub.
+4. Open **https://jasonescalante.com**, refresh the page, and send one test message
+   through the form. Confirm it appears in Gmail and check Spam if needed.
+   The automated tests do not verify live inbox delivery.
 
-The SQLite limiter is temporary application state. On App Platform, its counts
-reset when the container is replaced, and they are not shared across instances.
-Use a single instance for this version; shared rate limiting is needed before
-scaling the contact backend.
+A GitHub push alone does not update this manually installed Droplet. Pulling the
+changes and restarting the service are required. If the form says it is not
+configured, confirm the key belongs to the receiving email and restart the
+service after changing settings. If you set `WEB3FORMS_ACCESS_KEY` as a systemd
+environment variable, it overrides the JSON file; remove any stale override.
 
-References: [Create an app](https://docs.digitalocean.com/products/app-platform/how-to/create-apps/),
-[App Platform limits](https://docs.digitalocean.com/products/app-platform/details/limits/),
-and [DigitalOcean's SMTP restrictions](https://docs.digitalocean.com/support/why-is-smtp-blocked/).
+Because submission happens directly in the browser, it works with both the root
+and `www` HTTPS origins without proxy-origin configuration for the contact form.
+Web3Forms' free plan is not intended for relaying submissions from Python or PHP;
+server-side usage requires a paid plan and server IP allowlisting.
 
-## Deployment on a host that permits SMTP
+## Run locally or use another Python host
 
-The Python backend must be running for email delivery. Opening `index.html`
-directly or uploading it to a static-only host displays the form but does not
-send email. The raw HTML deliberately leaves its contact endpoint inactive;
-the Python server enables it when serving the page. Missing credentials and
-SMTP failures produce an error, never a successful-send message.
+Use Python 3.10 or newer. Copy `settings.example.json` to `settings.json` and fill
+in `WEB3FORMS_ACCESS_KEY`. Alternatively, set the environment variable of that name.
+Run `python server.py` and open http://127.0.0.1:8000. This is a development server.
 
-For a public website, use a Python-capable host and a production WSGI server.
-The local `python server.py` command is for development. Waitress supports
-Windows and Linux:
+For production, install `requirements.txt` and run Waitress behind an HTTPS proxy:
 
 ```text
-python -m pip install -r requirements.txt
 waitress-serve --listen=127.0.0.1:8000 server:application
 ```
 
-This command binds to localhost for use behind your host's HTTPS reverse proxy.
-Use the listen address and port required by your hosting provider. Set
-`PUBLIC_ORIGIN` to the exact public origin, such as `https://your-domain.example`,
-without a trailing path. This is used to check browser submissions through the
-proxy. Use HTTPS for the public page.
+On DigitalOcean App Platform, use a Python Web Service with build command
+`pip install -r requirements.txt`, run command
+`waitress-serve --listen=0.0.0.0:8080 server:application`, HTTP port `8080`, and
+`WEB3FORMS_ACCESS_KEY` configured in the component's environment variables.
 
-The rate limiter uses `REMOTE_ADDR`. If the host puts the app behind a proxy,
-configure Waitress to trust only the host's actual proxy addresses and appropriate
-forwarded headers. Do not blindly trust arbitrary client-supplied forwarding
-headers. Keep the `instance/` directory writable. Multiple workers on one server
-can share the local SQLite rate-limit file; multiple servers need shared rate
-limiting at the host or application layer.
+For static hosting, fill the hidden `access_key` input directly in `index.html`.
+No Python backend is required for Web3Forms itself. A blank or placeholder key
+is rejected locally rather than displaying a misleading success message.
+If configuring your own CSP, permit `https://api.web3forms.com` in `connect-src`
+and `form-action`.
 
-The server has a fixed configured recipient, input limits, header-injection
-checks, a hidden bot field, a five-attempts-per-ten-minutes IP limit, and bounded
-SMTP timeouts. Remote SMTP connections require TLS. Unencrypted SMTP is allowed
-only for the loopback test server. Successful submission means the SMTP server
-accepted the email; inbox placement is still handled by your mail provider.
-Check Spam when testing live delivery.
+The original `/api/contact` SMTP endpoint remains for backwards compatibility,
+but the current form does not call it. Its optional SMTP settings are retained
+in `settings.example.json`. Keep any SMTP passwords private. Missing SMTP
+credentials do not prevent the website or Web3Forms integration from running.
 
-## Files
+## Tests
 
-- `index.html`: the portfolio and accessible, responsive contact form.
-- `server.py`: page serving, validation, rate limiting, and email delivery.
-- `settings.example.json`: a blank credential template for Gmail SMTP.
-- `requirements.txt`: Waitress for production hosting; local development and
-  the Python tests use only the standard library.
-- `tests/test_contact.py`: validation, transport, and end-to-end delivery tests.
-
-## Test without sending real email
+Run from the repository root:
 
 ```text
 python -m unittest discover -s tests -v
+node --test tests/test_web3forms.cjs
 ```
 
-The integration test starts a local HTTP server and a local SMTP inbox, submits
-a contact message over HTTP, and verifies the received email, recipient, Reply-To,
-subject, and Unicode body. Other tests cover error responses, missing credentials,
-rate limits, TLS failures, and keeping private settings out of page responses.
+The Python tests cover public-key configuration and safe HTML insertion, CSP,
+page serving, and the legacy SMTP validation/delivery contract using a local mail
+sink. The Node tests run the actual form handler with browser APIs stubbed to
+check the Web3Forms payload, missing keys, bot checks, duplicate submissions,
+provider errors, network failures, timeout, and preserving inputs on failure.
+No automated test contacts Web3Forms or sends real email. GitHub Actions runs
+both suites on pushes and pull requests with Python 3.10/3.13 and Node 22.
 
-## Configuration references
+## References
 
-- [Google App Passwords](https://support.google.com/accounts/answer/185833)
-- [Gmail SMTP settings](https://support.google.com/mail/answer/7104828)
-- [Python SMTP client](https://docs.python.org/3/library/smtplib.html)
-- [Waitress deployment](https://docs.pylonsproject.org/projects/waitress/en/stable/usage.html)
+- [Web3Forms API and browser-side requirement](https://docs.web3forms.com/getting-started/api-reference)
+- [HTML and JavaScript integration](https://docs.web3forms.com/how-to-guides/html-and-javascript)
+- [Public form access key and setup](https://web3forms.com/)
+- [Troubleshooting](https://docs.web3forms.com/getting-started/troubleshooting)

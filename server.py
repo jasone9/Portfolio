@@ -1,7 +1,8 @@
-"""Serve Jason's portfolio and send contact messages through server-side SMTP.
+"""Serve Jason's portfolio with browser-side Web3Forms email delivery.
 
 Local development needs only Python 3.10+. Deploy the WSGI `application` with
-a production server such as Waitress behind HTTPS.
+a production server such as Waitress behind HTTPS. The original SMTP endpoint
+remains available for backwards compatibility but is not used by the form.
 """
 
 from dataclasses import dataclass
@@ -10,6 +11,7 @@ from email.headerregistry import Address
 from email.message import EmailMessage
 from email.utils import formataddr, formatdate, make_msgid
 import hashlib
+from html import escape
 from http import HTTPStatus
 import json
 import logging
@@ -52,6 +54,7 @@ class MailSettings:
     recipient: str = "jasone9661@gmail.com"
     public_origin: str = ""
     timeout: int = 15
+    web3forms_access_key: str = ""
 
     def validate(self):
         if not valid_email(self.sender) or not valid_email(self.recipient):
@@ -86,6 +89,7 @@ def load_settings():
         sender=str(setting("CONTACT_FROM", username)).strip(),
         recipient=str(setting("CONTACT_TO", "jasone9661@gmail.com")).strip(),
         public_origin=str(setting("PUBLIC_ORIGIN")).rstrip("/"),
+        web3forms_access_key=str(setting("WEB3FORMS_ACCESS_KEY")).strip(),
     )
 
 
@@ -172,7 +176,9 @@ class ContactApplication:
         self.settings = settings or load_settings()
         self.limiter = limiter or RateLimiter(ROOT / "instance" / "contact-rate.sqlite")
         self.html = Path(index_path or ROOT / "index.html").read_bytes().replace(
-            b'data-contact-endpoint=""', b'data-contact-endpoint="/api/contact"', 1
+            b'name="access_key" value=""',
+            ('name="access_key" value="' + escape(self.settings.web3forms_access_key, quote=True) + '"').encode("utf-8"),
+            1,
         )
 
     def __call__(self, environ, start_response):
@@ -185,7 +191,7 @@ class ContactApplication:
                 ("Content-Type", content_type), ("Content-Length", str(len(body))),
                 ("Cache-Control", "no-store"), ("X-Content-Type-Options", "nosniff"),
                 ("Referrer-Policy", "strict-origin-when-cross-origin"),
-                ("Content-Security-Policy", "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"),
+                ("Content-Security-Policy", "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.web3forms.com; base-uri 'none'; form-action 'self' https://api.web3forms.com; frame-ancestors 'none'"),
                 *extra,
             ]
             start_response(f"{status} {HTTPStatus(status).phrase}", headers)

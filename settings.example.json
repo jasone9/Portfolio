@@ -1,4 +1,5 @@
 {
+  "WEB3FORMS_ACCESS_KEY": "",
   "SMTP_HOST": "smtp.gmail.com",
   "SMTP_PORT": 587,
   "SMTP_SECURITY": "starttls",
