@@ -30,7 +30,7 @@ DOMAIN = re.compile(r"(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-
 
 
 def valid_email(value):
-    if not isinstance(value, str) or len(value) > 254 or not value.isascii():
+    if not isinstance(value, str) or not 1 <= len(value) <= 254 or not value.isascii():
         return False
     if any(ord(char) < 33 or ord(char) == 127 for char in value):
         return False

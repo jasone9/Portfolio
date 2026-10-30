@@ -75,7 +75,7 @@ class ContactTests(unittest.TestCase):
         self.smtp_factory.assert_not_called()
 
     def test_required_fields_and_header_injection_are_rejected(self):
-        for changes in ({"name": ""}, {"email": "bad"}, {"message": " "},
+        for changes in ({"name": ""}, {"email": ""}, {"email": "bad"}, {"message": " "},
                         {"name": "Visitor\r\nBcc: unwanted@example.com"},
                         {"email": "visitor@example.com\nBcc: unwanted@example.com"},
                         {"email": "a..b@example.com"}, {"email": "a@example..com"},
