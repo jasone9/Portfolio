@@ -186,6 +186,17 @@ class ContactTests(unittest.TestCase):
         self.assertNotIn(b'<script>alert(1)</script>', result["body"])
         self.smtp_factory.assert_not_called()
 
+    def test_embedded_public_key_works_without_local_configuration(self):
+        result = request(self.app, method="GET", path="/")
+        self.assertIn(b'name="access_key" value="682c46a2-e586-42e7-b7c0-3813f10029a4"', result["body"])
+
+    def test_local_key_overrides_embedded_key(self):
+        settings = server.MailSettings(web3forms_access_key="11111111-2222-4333-8444-555555555555")
+        app = server.ContactApplication(settings, self.limiter)
+        result = request(app, method="GET", path="/")
+        self.assertIn(b'name="access_key" value="11111111-2222-4333-8444-555555555555"', result["body"])
+        self.assertNotIn(b"682c46a2-e586-42e7-b7c0-3813f10029a4", result["body"])
+
     def test_csp_allows_browser_to_submit_to_web3forms(self):
         result = request(self.app, method="GET", path="/")
         csp = result["headers"]["Content-Security-Policy"]

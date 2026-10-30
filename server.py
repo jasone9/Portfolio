@@ -175,11 +175,15 @@ class ContactApplication:
     def __init__(self, settings=None, limiter=None, index_path=None):
         self.settings = settings or load_settings()
         self.limiter = limiter or RateLimiter(ROOT / "instance" / "contact-rate.sqlite")
-        self.html = Path(index_path or ROOT / "index.html").read_bytes().replace(
-            b'name="access_key" value=""',
-            ('name="access_key" value="' + escape(self.settings.web3forms_access_key, quote=True) + '"').encode("utf-8"),
-            1,
-        )
+        self.html = Path(index_path or ROOT / "index.html").read_bytes()
+        if self.settings.web3forms_access_key:
+            public_key = escape(self.settings.web3forms_access_key, quote=True).encode("utf-8")
+            self.html = re.sub(
+                rb'(name="access_key" value=")[^"]*(")',
+                lambda match: match[1] + public_key + match[2],
+                self.html,
+                count=1,
+            )
 
     def __call__(self, environ, start_response):
         method = environ.get("REQUEST_METHOD", "GET")

@@ -8,12 +8,15 @@ and Pokémon Card Manager, and FantasyIQ marked as in progress.
 The form now submits **directly from the visitor's browser** to
 `https://api.web3forms.com/submit` over HTTPS. This avoids DigitalOcean's SMTP
 restrictions and follows Web3Forms' browser-side integration for its free plan.
-Python still serves the website and inserts the configured public form key.
+Python still serves the website. A local configuration can override the embedded
+public form key when needed.
 The server's Content Security Policy explicitly allows the Web3Forms API.
 
-**Email delivery needs a real Web3Forms access key.** No key is included in this
-repository. Create a form for **jasone9661@gmail.com** at
-[Web3Forms](https://app.web3forms.com/), verify that email, and copy its access key.
+**The owner-provided public Web3Forms access key is configured in `index.html`.**
+After pulling the code and restarting the service, the form can submit using that
+key without a settings file. The form must be verified for **jasone9661@gmail.com**
+in [Web3Forms](https://app.web3forms.com/). Live inbox delivery still needs to be
+confirmed with a real browser submission.
 The destination inbox is determined by the access key, not an editable `to` field.
 The visitor's `email` field becomes Reply-To, so replying reaches the visitor.
 
@@ -38,40 +41,22 @@ The existing Nginx proxy, HTTPS certificate, and `portfolio.service` remain usab
    sudo git -C /opt/portfolio pull --ff-only
    ```
 
-2. Open the local configuration:
-
-   ```bash
-   sudo nano /opt/portfolio/settings.json
-   ```
-
-   If this is a new file, paste this and replace the value with your actual
-   Web3Forms form access key:
-
-   ```json
-   {
-     "WEB3FORMS_ACCESS_KEY": "PASTE_YOUR_REAL_WEB3FORMS_ACCESS_KEY_HERE"
-   }
-   ```
-
-   If settings already exist, add this key to the existing JSON object instead
-   of replacing other settings. Save with Ctrl+O, Enter, then exit with Ctrl+X.
-   This file is excluded from Git. Allow the service account to read it:
-
-   ```bash
-   sudo chown root:www-data /opt/portfolio/settings.json
-   sudo chmod 640 /opt/portfolio/settings.json
-   ```
-
-3. Restart the running Python service so it reloads the HTML and settings:
+2. Restart the running Python service so it reloads the HTML and settings:
 
    ```bash
    sudo systemctl restart portfolio
    sudo systemctl status portfolio --no-pager
    ```
 
-4. Open **https://jasonescalante.com**, refresh the page, and send one test message
+3. Open **https://jasonescalante.com**, refresh the page, and send one test message
    through the form. Confirm it appears in Gmail and check Spam if needed.
    The automated tests do not verify live inbox delivery.
+
+Optional: to use a different public form key, add `WEB3FORMS_ACCESS_KEY` to the
+existing `settings.json` or the service's environment. A nonempty local key
+replaces the embedded key in the served page; a blank or absent setting preserves
+the embedded key. Restart the service after changing configuration. Keep any
+existing settings when editing the JSON file.
 
 A GitHub push alone does not update this manually installed Droplet. Pulling the
 changes and restarting the service are required. If the form says it is not
@@ -86,8 +71,8 @@ server-side usage requires a paid plan and server IP allowlisting.
 
 ## Run locally or use another Python host
 
-Use Python 3.10 or newer. Copy `settings.example.json` to `settings.json` and fill
-in `WEB3FORMS_ACCESS_KEY`. Alternatively, set the environment variable of that name.
+Use Python 3.10 or newer. The embedded public key is used by default. To override
+it, configure `WEB3FORMS_ACCESS_KEY` in `settings.json` or the environment.
 Run `python server.py` and open http://127.0.0.1:8000. This is a development server.
 
 For production, install `requirements.txt` and run Waitress behind an HTTPS proxy:
@@ -99,7 +84,7 @@ waitress-serve --listen=127.0.0.1:8000 server:application
 On DigitalOcean App Platform, use a Python Web Service with build command
 `pip install -r requirements.txt`, run command
 `waitress-serve --listen=0.0.0.0:8080 server:application`, HTTP port `8080`, and
-`WEB3FORMS_ACCESS_KEY` configured in the component's environment variables.
+optionally override `WEB3FORMS_ACCESS_KEY` in the component's environment variables.
 
 For static hosting, fill the hidden `access_key` input directly in `index.html`.
 No Python backend is required for Web3Forms itself. A blank or placeholder key
