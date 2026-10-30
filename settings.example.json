@@ -1,0 +1,10 @@
+{
+  "SMTP_HOST": "smtp.gmail.com",
+  "SMTP_PORT": 587,
+  "SMTP_SECURITY": "starttls",
+  "SMTP_USERNAME": "jasone9661@gmail.com",
+  "SMTP_PASSWORD": "",
+  "CONTACT_FROM": "jasone9661@gmail.com",
+  "CONTACT_TO": "jasone9661@gmail.com",
+  "PUBLIC_ORIGIN": ""
+}
